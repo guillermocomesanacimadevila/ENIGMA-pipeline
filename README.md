@@ -1,1 +1,1 @@
-# Brain-Age-Predictor
+# ENIGMA Pipeline from sMRI data
