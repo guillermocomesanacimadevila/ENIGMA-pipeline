@@ -1,0 +1,83 @@
+import numpy as np
+import pandas as pd
+
+np.random.seed(42)
+
+# -- ENIGMA Cortical region names (Desikan-Killiany Atlas, 68 total) --
+cortical_names = [
+    f"{hemi}_{region}"
+    for hemi in ['lh', 'rh']
+    for region in [
+        'bankssts', 'caudalanteriorcingulate', 'caudalmiddlefrontal',
+        'cuneus', 'entorhinal', 'fusiform', 'inferiorparietal', 'inferiortemporal',
+        'isthmuscingulate', 'lateraloccipital', 'lateralorbitofrontal', 'lingual',
+        'medialorbitofrontal', 'middletemporal', 'parahippocampal', 'paracentral',
+        'parsopercularis', 'parsorbitalis', 'parstriangularis', 'pericalcarine',
+        'postcentral', 'posteriorcingulate', 'precentral', 'precuneus',
+        'rostralanteriorcingulate', 'rostralmiddlefrontal', 'superiorfrontal',
+        'superiorparietal', 'superiortemporal', 'supramarginal', 'frontalpole',
+        'temporalpole', 'transversetemporal', 'insula'
+    ]
+]
+
+# -- ENIGMA Subcortical region names (14 total) --
+subcortical_names = [
+    "Left-Thalamus-Proper", "Left-Caudate", "Left-Putamen", "Left-Pallidum",
+    "Left-Hippocampus", "Left-Amygdala", "Left-Accumbens-area",
+    "Right-Thalamus-Proper", "Right-Caudate", "Right-Putamen", "Right-Pallidum",
+    "Right-Hippocampus", "Right-Amygdala", "Right-Accumbens-area"
+]
+
+# -- Simulation parameters --
+n_samples = 2000
+n_cortical = len(cortical_names)
+n_subcortical = len(subcortical_names)
+n_sites = 5
+
+# -- Simulate features --
+X_cortical_raw = np.random.normal(2.5, 0.3, size=(n_samples, n_cortical))
+X_subcortical_raw = np.random.normal(1500, 200, size=(n_samples, n_subcortical))
+
+site_labels = np.random.choice(range(n_sites), size=n_samples)
+site_effects_cortical = np.random.normal(0, 0.1, size=(n_sites, n_cortical))
+site_effects_subcortical = np.random.normal(0, 50, size=(n_sites, n_subcortical))
+
+for i in range(n_samples):
+    X_cortical_raw[i] += site_effects_cortical[site_labels[i]]
+    X_subcortical_raw[i] += site_effects_subcortical[site_labels[i]]
+
+X_raw = np.hstack([X_cortical_raw, X_subcortical_raw])
+
+# -- True effect for working memory --
+# (Just like before; uses arbitrary regions for effect)
+true_effect = (
+    X_raw[:, cortical_names.index('lh_cuneus')] * 2.5
+    - X_raw[:, cortical_names.index('rh_lingual')] * 1.8
+    + X_raw[:, cortical_names.index('lh_precentral')] * 1.5
+    + X_raw[:, subcortical_names.index('Left-Hippocampus') + n_cortical] * 1.2
+    - X_raw[:, subcortical_names.index('Right-Amygdala') + n_cortical] * 1.0
+)
+y = true_effect + np.random.normal(0, 5, size=n_samples)
+
+ages = np.random.normal(35, 10, n_samples)
+sexes = np.random.choice([0, 1], n_samples)
+sample_ids = np.arange(n_samples)
+
+# -- Save sMRI data --
+df_sMRI = pd.DataFrame(X_raw, columns=cortical_names + subcortical_names)
+df_sMRI['Age'] = ages
+df_sMRI['Sex'] = sexes
+df_sMRI['Site'] = site_labels
+df_sMRI.insert(0, 'Sample_ID', sample_ids)  # make Sample_ID the first column
+
+df_sMRI.to_csv('enigma_like_sMRI.csv', index=False)
+
+# -- Save Working Memory outcome --
+df_WM = pd.DataFrame({
+    'Sample_ID': sample_ids,
+    'Working_Memory': y
+})
+df_WM.to_csv('enigma_like_WM.csv', index=False)
+
+print("Saved two files with real ENIGMA brain region names: enigma_like_sMRI.csv and enigma_like_WM.csv")
+
