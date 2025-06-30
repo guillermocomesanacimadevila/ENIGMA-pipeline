@@ -13,7 +13,6 @@ import warnings
 from jinja2 import Template
 from datetime import datetime
 
-# sklearn imports
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold, cross_val_score
 from sklearn.metrics import mean_absolute_error, r2_score, explained_variance_score
 from sklearn.preprocessing import StandardScaler
@@ -26,7 +25,9 @@ except ImportError:
     harmonizationLearn = None
 
 warnings.filterwarnings('ignore')
-sns.set(style="whitegrid", context="talk", palette="Set2")
+# Modern, colorblind, and pro look
+sns.set_theme(style="whitegrid", palette="colorblind", font_scale=1.2)
+plt.rcParams.update({'font.family': 'DejaVu Sans', 'axes.facecolor': '#fafbfc', 'axes.edgecolor': '#dddddd'})
 
 # ============================
 # SET SEEDS FOR REPRODUCIBILITY
@@ -108,6 +109,7 @@ class ENIGMAPipeline:
         self.report_sections = []
         self.plots = []
         self.stats = {}
+        self.top_feats_table = ""
         os.makedirs(self.out_dir, exist_ok=True)
         for sub in ['Visualisations', 'EDA', 'Models', 'Predictions']:
             os.makedirs(os.path.join(self.out_dir, sub), exist_ok=True)
@@ -127,7 +129,8 @@ class ENIGMAPipeline:
             for k, v in env.items():
                 f.write(f"{k}: {v}\n")
         self.stats['env'] = env
-        self.report_sections.append(f"<h2>Environment & Reproducibility</h2><pre>{env}</pre>")
+        self.env_table = "<table class='env-table'><tr>" + "".join([f"<th>{k}</th>" for k in env]) + "</tr>" + \
+            "<tr>" + "".join([f"<td>{v}</td>" for v in env.values()]) + "</tr></table>"
         return env
 
     def load_data(self):
@@ -145,7 +148,13 @@ class ENIGMAPipeline:
         self.df_raw = df_raw
         missing = self.df_raw.isnull().sum().sum()
         self.stats['missing'] = missing
-        self.report_sections.append(f"<h2>Data Loaded</h2><ul><li>Features: {len(self.feature_names)}</li><li>Samples: {len(self.df_raw)}</li><li>Missing values: {missing}</li></ul>")
+        self.dataset_table = f"""
+        <table class='info-table'>
+        <tr><th>Samples</th><td>{len(self.df_raw)}</td></tr>
+        <tr><th>Features</th><td>{len(self.feature_names)}</td></tr>
+        <tr><th>Missing Values</th><td>{missing}</td></tr>
+        </table>
+        """
         print("Data loaded and merged.")
 
     def run_eda(self):
@@ -153,66 +162,73 @@ class ENIGMAPipeline:
         eda_imgs = []
         eda_stats = {}
         for var in ['Age', 'Sex', 'Site']:
-            plt.figure(figsize=(5,3))
+            plt.figure(figsize=(6,3))
             if var == 'Sex':
-                sns.countplot(x=var, data=self.df_raw, edgecolor='k', palette='Set2')
+                sns.countplot(x=var, data=self.df_raw, edgecolor='k', palette='colorblind')
                 eda_stats['sex_counts'] = self.df_raw[var].value_counts().to_dict()
             else:
-                sns.histplot(self.df_raw[var], kde=True, bins=30, color="#3498db", edgecolor='black')
+                sns.histplot(self.df_raw[var], kde=True, bins=30, color="#1f77b4", edgecolor='black')
                 eda_stats[f'{var.lower()}_mean'] = self.df_raw[var].mean()
                 eda_stats[f'{var.lower()}_std'] = self.df_raw[var].std()
-            plt.title(f'{var} Distribution', fontsize=16)
-            plt.xlabel(var, fontsize=13)
+            plt.title(f'{var} Distribution', fontsize=18, weight='bold')
+            plt.xlabel(var, fontsize=15)
+            plt.ylabel("Count", fontsize=15)
             plt.tight_layout()
             fname = f"{eda_dir}/{var}_hist.png"
-            plt.savefig(fname, dpi=200); plt.close()
+            plt.savefig(fname, dpi=250); plt.close()
             eda_imgs.append(fname)
         plt.figure(figsize=(6,3))
-        sns.histplot(self.df_raw['Working_Memory'], bins=40, kde=True, color="#e67e22", edgecolor='black')
-        plt.title('Working Memory Distribution', fontsize=16)
-        plt.xlabel("Working Memory Score", fontsize=13)
+        sns.histplot(self.df_raw['Working_Memory'], bins=40, kde=True, color="#f39c12", edgecolor='black')
+        plt.title('Working Memory Distribution', fontsize=18, weight='bold')
+        plt.xlabel("Working Memory Score", fontsize=15)
         plt.tight_layout()
         fname = f"{eda_dir}/Working_Memory_hist.png"
-        plt.savefig(fname, dpi=200); plt.close()
+        plt.savefig(fname, dpi=250); plt.close()
         eda_imgs.append(fname)
         eda_stats['wm_mean'] = self.df_raw['Working_Memory'].mean()
         eda_stats['wm_std'] = self.df_raw['Working_Memory'].std()
         plt.figure(figsize=(12, 3))
         means = self.X_raw.mean()
         sns.histplot(means, bins=40, color="#16a085", edgecolor='black')
-        plt.title('Mean of sMRI Features', fontsize=16)
-        plt.xlabel('Mean Value')
+        plt.title('Mean of sMRI Features', fontsize=17)
+        plt.xlabel('Mean Value', fontsize=13)
         plt.tight_layout()
         fname = f"{eda_dir}/Feature_Mean_hist.png"
-        plt.savefig(fname, dpi=200); plt.close()
+        plt.savefig(fname, dpi=250); plt.close()
         eda_imgs.append(fname)
         plt.figure(figsize=(12, 3))
         stds = self.X_raw.std()
         sns.histplot(stds, bins=40, color="#c0392b", edgecolor='black')
-        plt.title('Std Dev of sMRI Features', fontsize=16)
-        plt.xlabel('Std Value')
+        plt.title('Std Dev of sMRI Features', fontsize=17)
+        plt.xlabel('Std Value', fontsize=13)
         plt.tight_layout()
         fname = f"{eda_dir}/Feature_Std_hist.png"
-        plt.savefig(fname, dpi=200); plt.close()
+        plt.savefig(fname, dpi=250); plt.close()
         eda_imgs.append(fname)
         plt.figure(figsize=(14, 1))
-        sns.heatmap(self.df_raw.isnull(), cbar=False)
-        plt.title('Missing Values', fontsize=15)
+        sns.heatmap(self.df_raw.isnull(), cbar=False, cmap='Reds')
+        plt.title('Missing Values', fontsize=16, weight='bold')
         fname = f"{eda_dir}/missing_values_heatmap.png"
         plt.tight_layout()
-        plt.savefig(fname, dpi=200); plt.close()
+        plt.savefig(fname, dpi=250); plt.close()
         eda_imgs.append(fname)
         self.plots += eda_imgs
-        self.stats['eda'] = eda_stats
-        imgs_html = "".join([f'<img src="{os.path.relpath(x, self.out_dir)}" width="400">' for x in eda_imgs])
-        stats_html = "<pre>" + "\n".join([f"{k}: {v}" for k, v in eda_stats.items()]) + "</pre>"
-        self.report_sections.append(f"<h2>Exploratory Data Analysis</h2>{imgs_html}{stats_html}")
+        # EDA Table
+        eda_df = pd.DataFrame([
+            ["Sex (counts)", str(eda_stats.get('sex_counts', '-'))],
+            ["Age (mean ± std)", f"{eda_stats.get('age_mean', '-'):0.1f} ± {eda_stats.get('age_std', '-'):0.1f}"],
+            ["Site (mean ± std)", f"{eda_stats.get('site_mean', '-'):0.1f} ± {eda_stats.get('site_std', '-'):0.1f}"],
+            ["Working Memory (mean ± std)", f"{eda_stats.get('wm_mean', '-'):0.2f} ± {eda_stats.get('wm_std', '-'):0.2f}"]
+        ], columns=["Variable", "Stats"])
+        eda_table = eda_df.to_html(index=False, classes='info-table', border=0)
+        imgs_html = "".join([f'<img src="{os.path.relpath(x, self.out_dir)}" class="vizimg">' for x in eda_imgs])
+        self.eda_section = f"<h2 id='eda'>Exploratory Data Analysis</h2>{eda_table}<div class='viz-grid'>{imgs_html}</div>"
         print("EDA completed and saved.")
 
     def harmonize(self):
         if harmonizationLearn is None:
             self.X_harmonized = self.X_raw
-            self.report_sections.append("<h2>ComBat Harmonization</h2><p><b>Skipped</b> (neuroHarmonize not installed).</p>")
+            self.harmo_section = "<h2 id='harmonization'>ComBat Harmonization</h2><div class='card'><b>Skipped</b> (neuroHarmonize not installed).</div>"
             print('ComBat harmonization skipped: neuroHarmonize not installed.')
         else:
             try:
@@ -222,11 +238,11 @@ class ENIGMAPipeline:
                 covars['Sex'] = covars['Sex'].astype(str)
                 model, harmonized = harmonizationLearn(self.X_raw.values, covars)
                 self.X_harmonized = pd.DataFrame(harmonized, columns=self.feature_names)
-                self.report_sections.append("<h2>ComBat Harmonization</h2><p>Applied successfully.</p>")
+                self.harmo_section = "<h2 id='harmonization'>ComBat Harmonization</h2><div class='card'>Applied successfully.</div>"
                 print('ComBat harmonization applied.')
             except Exception as e:
                 self.X_harmonized = self.X_raw
-                self.report_sections.append(f"<h2>ComBat Harmonization</h2><p><b>Skipped</b> (failed: {e}).</p>")
+                self.harmo_section = f"<h2 id='harmonization'>ComBat Harmonization</h2><div class='card error'><b>Skipped</b> (failed: {e}).</div>"
                 print(f'ComBat harmonization skipped: {e}')
         harmo_save = self.df_raw[['Sample_ID', 'Site', 'Age', 'Sex']].copy()
         harmo_save = pd.concat([harmo_save, self.X_harmonized], axis=1)
@@ -271,11 +287,15 @@ class ENIGMAPipeline:
                                     cv=kf_outer, scoring='r2')
         results['Random Forest'] = rf_scores
         self.stats['nested_cv'] = {k: (float(np.mean(v)), float(np.std(v))) for k, v in results.items()}
-        text = "<h2>Nested Cross-Validation Results (5 Outer Folds)</h2><ul>"
-        for m, scores in results.items():
-            text += f"<li>{m}: {np.mean(scores):.3f} ± {np.std(scores):.3f} (R²)</li>"
-        text += "</ul>"
-        self.report_sections.append(text)
+        # Table for results
+        rows = "".join([
+            f"<tr><td>{model}</td><td>{np.mean(scores):.3f} ± {np.std(scores):.3f}</td></tr>"
+            for model, scores in results.items()
+        ])
+        self.cv_section = f"""
+        <h2 id='crossval'>Nested Cross-Validation Results (5 Outer Folds)</h2>
+        <table class='perf-table'><tr><th>Model</th><th>Mean R² (±SD)</th></tr>{rows}</table>
+        """
         self.nested_cv_results = results
 
     def train_final_models(self):
@@ -294,15 +314,15 @@ class ENIGMAPipeline:
         self.models = {'Lasso': lasso, 'XGBoost': xgb, 'Random Forest': rf}
 
     def evaluate(self):
-        text = "<h2>Test Set Performance</h2><ul>"
+        # Table for test metrics
         perf_dict = {}
         for name, model in self.models.items():
             scores = model.evaluate(self.X_test, self.y_test)
             perf_dict[name] = scores
-            text += f"<li>{name}: R²={scores['R2']:.3f} | MAE={scores['MAE']:.3f} | Explained Variance={scores['Explained Variance']:.3f}</li>"
-        text += "</ul>"
         self.stats['final_test'] = perf_dict
-        self.report_sections.append(text)
+        test_table = pd.DataFrame(perf_dict).T.reset_index().rename(columns={'index': 'Model'})
+        test_html = test_table.to_html(index=False, classes='perf-table', float_format="{:.3f}".format, border=0)
+        self.eval_section = f"<h2 id='testset'>Test Set Performance</h2>{test_html}"
 
     def interpret(self):
         try:
@@ -312,52 +332,68 @@ class ENIGMAPipeline:
             shap_summary_path = f"{self.out_dir}/Visualisations/SHAP_summary_xgb.png"
             plt.figure()
             shap.summary_plot(shap_values, self.X_test, feature_names=self.feature_names, show=False)
-            plt.tight_layout(); plt.savefig(shap_summary_path, dpi=220, bbox_inches='tight'); plt.close()
+            plt.tight_layout(); plt.savefig(shap_summary_path, dpi=260, bbox_inches='tight'); plt.close()
             self.plots.append(shap_summary_path)
             # SHAP bar plot (actual feature names)
             shap_bar_path = f"{self.out_dir}/Visualisations/SHAP_bar_xgb.png"
             plt.figure()
             shap.plots.bar(shap_values, show=False)
-            plt.tight_layout(); plt.savefig(shap_bar_path, dpi=220, bbox_inches='tight'); plt.close()
+            plt.tight_layout(); plt.savefig(shap_bar_path, dpi=260, bbox_inches='tight'); plt.close()
             self.plots.append(shap_bar_path)
             mean_abs_shap = np.abs(shap_values.values).mean(axis=0)
             top_idx = np.argsort(mean_abs_shap)[::-1][:10]
             top_feats = [self.feature_names[i] for i in top_idx]
             top_vals = mean_abs_shap[top_idx]
-            text = "<h2>Top 10 XGBoost Features</h2><ol>"
-            for i, val in enumerate(top_vals):
-                text += f"<li>{top_feats[i]}: {val:.2f}</li>"
-            text += "</ol>"
+            # TABLE: top features
+            self.top_feats_table = "<table class='feat-table'><tr><th>Feature</th><th>Mean |SHAP value|</th></tr>"
+            self.top_feats_table += "".join([
+                f"<tr><td>{top_feats[i]}</td><td>{top_vals[i]:.2f}</td></tr>"
+                for i in range(len(top_feats))
+            ])
+            self.top_feats_table += "</table>"
             self.stats['top10_shap'] = dict(zip(top_feats, top_vals))
-            self.report_sections.append(text)
+            # RF permutation importance
             perm = permutation_importance(self.models['Random Forest'].model, self.X_test, self.y_test,
                                           n_repeats=10, random_state=self.random_state)
             sorted_idx = perm.importances_mean.argsort()[::-1][:10]
             perm_names = [self.feature_names[i] for i in sorted_idx]
-            perm_path = f"{self.out_dir}/Visualisations/RF_permutation_importance.png"
-            plt.figure(figsize=(8, 4))
-            sns.barplot(y=perm_names, x=perm.importances_mean[sorted_idx], palette='flare')
-            plt.title("Top 10 RF Permutation Importances", fontsize=16)
-            plt.xlabel("Mean Importance", fontsize=12)
-            plt.tight_layout(); plt.savefig(perm_path, dpi=220); plt.close()
-            self.plots.append(perm_path)
-            self.stats['top10_rf'] = dict(zip(perm_names, perm.importances_mean[sorted_idx]))
-            # PDP for XGBoost top 3
+            perm_vals = perm.importances_mean[sorted_idx]
+            perm_table = "<table class='feat-table'><tr><th>Feature</th><th>Mean Importance</th></tr>"
+            perm_table += "".join([
+                f"<tr><td>{perm_names[i]}</td><td>{perm_vals[i]:.3f}</td></tr>"
+                for i in range(len(perm_names))
+            ])
+            perm_table += "</table>"
+            # PDP for XGBoost top 3 (with real labels)
             for j in range(3):
                 idx = top_idx[j]
-                PDP_path = f"{self.out_dir}/Visualisations/PDP_Feature{j+1}_xgb.png"
+                PDP_path = f"{self.out_dir}/Visualisations/PDP_{top_feats[j].replace(' ', '_')}_xgb.png"
                 PartialDependenceDisplay.from_estimator(
                     self.models['XGBoost'].model, self.X_test, [idx], feature_names=self.feature_names
                 )
-                plt.title(f"Partial Dependence: {self.feature_names[idx]}", fontsize=15)
-                plt.tight_layout(); plt.savefig(PDP_path, dpi=150); plt.close()
+                plt.title(f"Partial Dependence: {self.feature_names[idx]}", fontsize=16)
+                plt.tight_layout(); plt.savefig(PDP_path, dpi=220); plt.close()
                 self.plots.append(PDP_path)
+            self.interp_section = f"""
+            <h2 id='interpret'>Interpretability</h2>
+            <div class='viz-flex'>
+                <div class='card'>
+                    <h3>Top 10 XGBoost Features</h3>
+                    {self.top_feats_table}
+                </div>
+                <div class='card'>
+                    <h3>Top 10 RF Permutation Importances</h3>
+                    {perm_table}
+                </div>
+            </div>
+            """
         except Exception as e:
-            self.report_sections.append(
-                f"<h2>Interpretability</h2><p style='color:red;'>Interpretability step failed: {e}</p>")
+            self.interp_section = (
+                f"<h2 id='interpret'>Interpretability</h2><div class='card error'>Interpretability step failed: {e}</div>")
             print("Interpretation step failed:", e)
 
     def visualise(self):
+        # Model performance comparison
         perf = pd.DataFrame({
             'Model': list(self.models.keys()),
             'R2': [r2_score(self.y_test, m.predict(self.X_test)) for m in self.models.values()],
@@ -365,20 +401,21 @@ class ENIGMAPipeline:
         })
         bar_path = f'{self.out_dir}/Visualisations/model_performance_comparison_final.png'
         plt.figure(figsize=(7,5))
-        perf.set_index('Model')[['R2', 'MAE']].plot(kind='bar', edgecolor="black", alpha=0.9, rot=0, ax=plt.gca())
+        perf.set_index('Model')[['R2', 'MAE']].plot(kind='bar', edgecolor="black", alpha=0.96, rot=0, ax=plt.gca())
         plt.title('Model Performance Comparison (Test Set)', fontsize=17, weight='bold')
-        plt.ylabel("Score", fontsize=13)
-        plt.tight_layout(); plt.savefig(bar_path, dpi=240); plt.close()
+        plt.ylabel("Score", fontsize=15)
+        plt.xlabel("")
+        plt.tight_layout(); plt.savefig(bar_path, dpi=260); plt.close()
         self.plots.append(bar_path)
         # Calibration plot (XGBoost)
         cal_path = f'{self.out_dir}/Visualisations/calibration_plot_xgb_final.png'
         plt.figure(figsize=(6, 6))
-        plt.scatter(self.y_test, self.models['XGBoost'].predict(self.X_test), alpha=0.7, edgecolor='k', s=50, c="#16a085")
+        plt.scatter(self.y_test, self.models['XGBoost'].predict(self.X_test), alpha=0.7, edgecolor='k', s=70, c="#16a085")
         plt.plot([min(self.y_test), max(self.y_test)], [min(self.y_test), max(self.y_test)], 'r--', lw=2)
-        plt.xlabel('True Working Memory', fontsize=13)
-        plt.ylabel('Predicted Working Memory', fontsize=13)
+        plt.xlabel('True Working Memory', fontsize=15)
+        plt.ylabel('Predicted Working Memory', fontsize=15)
         plt.title('Calibration Plot: XGBoost', fontsize=17, weight='bold')
-        plt.tight_layout(); plt.savefig(cal_path, dpi=240); plt.close()
+        plt.tight_layout(); plt.savefig(cal_path, dpi=260); plt.close()
         self.plots.append(cal_path)
 
     def save_all(self):
@@ -397,10 +434,39 @@ class ENIGMAPipeline:
 
     def html_report(self, filename="ENIGMA_pipeline_report.html"):
         imgs_html = "".join([f'<img src="{os.path.relpath(x, self.out_dir)}" class="vizimg">' for x in self.plots])
-        stats_html = "<h2>Pipeline Statistics</h2><pre>" + "\n".join(
-            [f"{k}: {v}" for k, v in self.stats.items()]) + "</pre>"
+        # Table of Contents
+        toc = """
+        <nav class='toc'>
+        <b>Contents:</b>
+        <a href='#summary'>Executive Summary</a>
+        <a href='#dataset'>Dataset Info</a>
+        <a href='#env'>Reproducibility</a>
+        <a href='#eda'>EDA</a>
+        <a href='#harmonization'>Harmonization</a>
+        <a href='#crossval'>Cross-Validation</a>
+        <a href='#testset'>Test Performance</a>
+        <a href='#interpret'>Interpretability</a>
+        <a href='#plots'>Visualizations</a>
+        </nav>
+        """
+        # Executive summary card
+        best_model = max(self.stats['final_test'], key=lambda k: self.stats['final_test'][k]['R2'])
+        best_score = self.stats['final_test'][best_model]['R2']
+        summary_card = f"""
+        <section id='summary'>
+            <div class='headline'>
+                <span>ENIGMA-Pipeline Results</span>
+                <span class='badge'>v2024</span>
+            </div>
+            <div class='summary-cards'>
+                <div class='card summary'><h3>Best Model (R²)</h3><div class='num'>{best_model}</div><div class='score'>{best_score:.3f}</div></div>
+                <div class='card summary'><h3>Samples</h3><div class='num'>{len(self.df_raw)}</div></div>
+                <div class='card summary'><h3>Features</h3><div class='num'>{len(self.feature_names)}</div></div>
+            </div>
+        </section>
+        """
 
-        html_template = """
+        html_template = f"""
         <!DOCTYPE html>
         <html>
         <head>
@@ -408,45 +474,101 @@ class ENIGMAPipeline:
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; margin:0; background:#f7f8fa; color:#222; transition: background 0.2s, color 0.2s; }
-        .container { max-width:950px; margin: auto; padding: 1.5em 2em 2em 2em; background:var(--bg); box-shadow:0 2px 24px #0002; border-radius: 14px;}
-        h1, h2, h3 { color: #202e3b; margin-top: 0.7em;}
-        pre { background:#f2f2f4; border-radius:7px; padding:8px; font-size:1em; overflow-x:auto; }
-        img.vizimg { margin:20px 14px 14px 0; border: 1.5px solid #ddd; box-shadow: 2px 2px 14px #0001; border-radius:8px; width:430px; max-width:100%; vertical-align:middle;}
-        .toggle { float:right; margin:-10px 0 0 0; }
-        .stats-box { background: #fcfcff; border-radius: 8px; box-shadow: 0 1px 8px #0001; margin: 18px 0 24px 0; padding: 14px 22px;}
-        .section { margin-bottom: 30px; }
-        @media (max-width:600px) { .container {padding:0.7em;} img.vizimg {width:100%;} }
-        body.dark { background: #181e2b; color:#eee;}
+        body {{
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0; background: linear-gradient(115deg,#f3f6ff 0%,#e0e6ff 100%);
+            color:#223;
+            min-height:100vh;
+        }}
+        .container {{
+            max-width:1000px; margin:2.5em auto; padding:2.3em 2.2em 2.2em 2.2em; background:rgba(255,255,255,0.97);
+            box-shadow:0 4px 32px #0002; border-radius:16px;
+        }}
+        h1,h2,h3 {{ color: #253c70; margin-top: 0.7em; font-weight:800; letter-spacing:-0.02em; }}
+        h2 {{ border-bottom:2px solid #e6ebfa; padding-bottom:0.13em; }}
+        .headline {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:2.1em; font-weight:700; letter-spacing:-0.02em;}}
+        .badge {{ background:#2542b7; color:#fff; padding:3px 14px; border-radius:18px; font-size:1.1em; letter-spacing:0.04em; font-weight:400; }}
+        nav.toc {{
+            display:flex; flex-wrap:wrap; gap:1.5em; padding:0.7em 0 1.1em 0; font-size:1.08em;
+            background:rgba(41,57,121,0.06); border-radius:12px; margin-bottom:2em;
+        }}
+        nav.toc a {{ color:#274ef6; text-decoration:none; font-weight:500; transition:color 0.17s; }}
+        nav.toc a:hover {{ color:#092073; text-decoration:underline; }}
+        .info-table,.perf-table,.feat-table,.env-table {{
+            width:100%; border-collapse:collapse; margin-bottom:2em; font-size:1.07em;
+        }}
+        .info-table th, .info-table td,
+        .perf-table th, .perf-table td,
+        .feat-table th, .feat-table td,
+        .env-table th, .env-table td {{
+            border-bottom:1px solid #e2e6f2; padding:10px 15px; text-align:left;
+        }}
+        .info-table th,.perf-table th,.feat-table th,.env-table th{{ background:#eef1fc; font-weight:600; }}
+        .info-table td,.perf-table td,.feat-table td,.env-table td{{ background:#fff; }}
+        .card {{
+            background:#f7f8fd; border-radius:12px; box-shadow:0 1px 7px #0001; padding:20px 22px; margin-bottom:20px;
+            border-left: 6px solid #4f65ea;
+        }}
+        .card.summary {{
+            border-left: none; box-shadow:0 1px 6px #0001; text-align:center; margin:0 16px 0 0;
+            min-width:150px; flex:1 1 0;
+        }}
+        .card.summary .num {{ font-size:2.1em; font-weight:700; color:#4f65ea; }}
+        .card.summary .score {{ font-size:2.5em; font-weight:800; color:#18ac95; }}
+        .card.error {{ border-left:6px solid #e6344b; color:#be2238; background:#fce5ea; }}
+        .summary-cards {{ display:flex; gap:18px; margin-bottom:2.4em; }}
+        .vizimg {{
+            margin:22px 16px 14px 0; border: 1.6px solid #d7e0ff; box-shadow: 2px 2px 14px #f4f5fa;
+            border-radius:10px; width:420px; max-width:98%; vertical-align:middle;
+        }}
+        .viz-grid {{ display:flex; flex-wrap:wrap; gap:16px 10px; margin-bottom:20px; }}
+        .viz-flex {{ display:flex; flex-wrap:wrap; gap:18px 18px; margin-bottom:2em; }}
+        @media (max-width:800px) {{
+            .container {{padding:0.5em;}}
+            .vizimg, .viz-grid, .summary-cards, .viz-flex {{ width:100%; flex-direction:column; }}
+            .vizimg {{width:100%;}}
+        }}
+        .button-toggle {{ padding: 7px 22px; border-radius: 8px; border:none; background: #4f65ea; color:white; font-weight:600; margin-bottom:1.6em; cursor:pointer; float:right;}}
+        .button-toggle:hover {{background: #2c3878;}}
+        body.dark {{
+            background: linear-gradient(125deg,#171e3d 0%,#303a60 100%);
+            color:#e9f0fa;
+        }}
+        body.dark .container {{background:#232b3b; color:#e9f0fa;}}
         body.dark h1,body.dark h2,body.dark h3 {color:#b5cfff;}
-        body.dark pre {background:#262d3a; color:#cdd6ee;}
-        body.dark .container {background:#232b3b;}
-        body.dark .stats-box {background: #222a39;}
-        body.dark img.vizimg {border-color:#3b4660;}
-        .button-toggle { padding: 6px 18px; border-radius: 8px; border:none; background: #464fd3; color:white; font-weight:600; margin-bottom:1em; cursor:pointer; float:right;}
-        .button-toggle:hover {background: #2c3878;}
+        body.dark nav.toc {{background:rgba(50,54,90,0.18);}}
+        body.dark .info-table th,.perf-table th,.feat-table th,.env-table th{{background:#232b4f;color:#ccd5ff;}}
+        body.dark .info-table td,.perf-table td,.feat-table td,.env-table td{{background:#222a39;}}
+        body.dark .card {{background:#222a39; border-left-color:#7cc9e9;}}
+        body.dark .card.summary {{background:#283560;}}
+        body.dark .card.error {{background:#33202a; border-left-color:#c8484b;}}
+        body.dark .vizimg {{border-color:#3443a0;}}
+        ::selection {{background:#a4b5ff; color:#fff;}}
         </style>
         </head>
         <body>
         <div class="container">
         <button onclick="document.body.classList.toggle('dark')" class="button-toggle">Toggle Light/Dark</button>
-        <h1>ENIGMA-like Pipeline Results</h1>
-        {{report_sections}}
-        {{stats_html}}
-        <h2>All Plots</h2>
-        {{imgs_html}}
+        {toc}
+        {summary_card}
+        <section id='dataset'><h2>Dataset Information</h2>{self.dataset_table}</section>
+        <section id='env'><h2>Reproducibility & Environment</h2>{self.env_table}</section>
+        {self.eda_section}
+        {self.harmo_section}
+        {self.cv_section}
+        {self.eval_section}
+        {self.interp_section}
+        <h2 id='plots'>All Visualizations</h2>
+        <div class='viz-grid'>{imgs_html}</div>
+        <div style='height:24px;'></div>
+        <footer style='font-size:1.05em;margin-top:2.3em;text-align:right;color:#999;'>ENIGMA-like pipeline dashboard — generated on {datetime.now().strftime("%Y-%m-%d %H:%M")}</footer>
         </div>
         </body>
         </html>
         """
-        html = Template(html_template).render(
-            report_sections=''.join(self.report_sections),
-            imgs_html=imgs_html,
-            stats_html=stats_html,
-        )
         path = os.path.join(self.out_dir, filename)
         with open(path, "w") as f:
-            f.write(html)
+            f.write(html_template)
         print(f"HTML report saved as: {path}")
 
     def run_full_pipeline(self):
