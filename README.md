@@ -28,12 +28,12 @@ A reproducible, scalable, and modular machine learning pipeline for ENIGMA-like 
     ```
 
    ```bash
-    chmod +x run_enigma_pipeline.sh && run_enigma_pipeline.sh
+    chmod +x run_enigma_pipeline.sh && bash run_enigma_pipeline.sh
     ```
 
 3. **RUN ALL-IN-ONE**
    ```bash
-    git clone https://github.com/guillermocomesanacimadevila/ENIGMA-pipeline.git && cd ENIGMA-pipeline && chmod +x run_enigma_pipeline.sh && run_enigma_pipeline.sh
+    git clone https://github.com/guillermocomesanacimadevila/ENIGMA-pipeline.git && cd ENIGMA-pipeline && chmod +x run_enigma_pipeline.sh && bash run_enigma_pipeline.sh
     ```
 
     This script will:
