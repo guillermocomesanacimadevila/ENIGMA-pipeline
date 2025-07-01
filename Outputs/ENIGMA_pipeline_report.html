@@ -1,0 +1,441 @@
+
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <title>ENIGMA Pipeline Report</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+            <style>
+            body {
+                font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                margin: 0;
+                background: linear-gradient(120deg,#f6f9fc 0%,#e0e7ff 100%);
+                color:#1b2232;
+            }
+            .container {
+                max-width:1100px;
+                margin: 3.5em auto 2.5em auto;
+                padding: 2.8em 2.2em 2.2em 2.2em;
+                background:rgba(255,255,255,0.98);
+                box-shadow:0 9px 54px #00235415;
+                border-radius:32px;
+            }
+            .brandicon {
+                height:48px;
+                margin-right: 12px;
+                vertical-align:middle;
+            }
+            h1,h2,h3 {
+                color: #1a237e;
+                font-weight:900;
+                margin-top: 0.7em;
+            }
+            h2 {
+                border-bottom:3px solid #f3f4fb;
+                padding-bottom:0.18em;
+                margin-bottom: 1.4em;
+                letter-spacing:-0.02em;
+            }
+            .headline {
+                display:flex;
+                align-items:center;
+                gap: 18px;
+                margin-bottom:20px;
+                font-size:2.3em;
+                font-weight:900;
+                letter-spacing:-0.02em;
+            }
+            .badge {
+                background:#3a6cf6;
+                color:#fff;
+                padding:4px 18px;
+                border-radius:20px;
+                font-size:1em;
+                font-weight:700;
+                letter-spacing:0.06em;
+                box-shadow: 0 2px 10px #3a6cf617;
+                margin-left:auto;
+            }
+            nav.toc {
+                display:flex;
+                flex-wrap:wrap;
+                gap:1.25em;
+                padding:1em 0 1.4em 0;
+                font-size:1.13em;
+                background:rgba(80,111,221,0.06);
+                border-radius:18px;
+                margin-bottom:2.6em;
+                border:1.5px solid #e7eafe;
+                box-shadow: 0 1px 7px #d6e2ff24;
+                font-weight:700;
+            }
+            .toc-ico {font-size:1.13em;vertical-align:middle;margin-right:0.11em;}
+            nav.toc a {
+                color:#2a3fa6;
+                text-decoration:none;
+                border-bottom:2px solid transparent;
+                padding-bottom:1px;
+                transition:all 0.17s;
+                border-radius:4px;
+            }
+            nav.toc a:hover {
+                color:#253082;
+                border-bottom:2px solid #3a6cf6;
+                background:#e6ecff;
+            }
+            section {
+                margin-bottom:3em;
+            }
+            .section-desc {
+                margin-top:18px;
+                margin-bottom:0.8em;
+                font-size:1.18em;
+                color:#263c74;
+                background: #f3f7fe;
+                padding:14px 19px;
+                border-radius:13px;
+                box-shadow:0 2px 14px #e2eaf8;
+            }
+            .info-table,.perf-table,.feat-table,.env-table {
+                width:100%;
+                border-collapse:collapse;
+                margin-bottom:2.2em;
+                font-size:1.11em;
+                box-shadow:0 2px 16px #e3eafc21;
+                background:#f8faff;
+                border-radius:8px;
+                overflow:hidden;
+            }
+            .info-table th, .info-table td,
+            .perf-table th, .perf-table td,
+            .feat-table th, .feat-table td,
+            .env-table th, .env-table td {
+                border-bottom:1.2px solid #e8eefd;
+                padding:14px 17px;
+                text-align:left;
+            }
+            .info-table th, .perf-table th, .feat-table th, .env-table th {
+                background:#eef4ff;
+                font-weight:700;
+                color:#264182;
+                letter-spacing:0.01em;
+            }
+            .info-table td, .perf-table td, .feat-table td, .env-table td {
+                background:#f8faff;
+                font-weight:500;
+            }
+            .info-table tr:nth-child(even) td,
+            .perf-table tr:nth-child(even) td,
+            .feat-table tr:nth-child(even) td,
+            .env-table tr:nth-child(even) td {
+                background: #e7eafd;
+            }
+            .card {
+                background:#f7f9ff;
+                border-radius:17px;
+                box-shadow:0 3px 18px #b6c4ea17;
+                padding:28px 30px;
+                margin-bottom:24px;
+                border-left: 7px solid #3a6cf6;
+                font-size:1.09em;
+            }
+            .card.summary {
+                border-left: none;
+                box-shadow:0 2px 10px #3a6cf616;
+                text-align:center;
+                margin:0 22px 0 0;
+                min-width:160px; flex:1 1 0;
+                display:flex;
+                flex-direction:column;
+                justify-content:center;
+                align-items:center;
+            }
+            .card.summary .num { font-size:2.45em; font-weight:900; color:#3a6cf6; }
+            .card.summary .score { font-size:2.2em; font-weight:900; color:#14b9b2; }
+            .card.summary .score-icon { font-size:2.2em;margin-bottom:0.18em; }
+            .card.error { border-left:7px solid #e6344b; color:#be2238; background:#fff0f2; }
+            .summary-cards {
+                display:flex;
+                gap:29px;
+                margin-bottom:2.7em;
+            }
+            .timeline {
+                display:flex;
+                gap:19px;
+                justify-content:center;
+                align-items:center;
+                margin-bottom:2.7em;
+                margin-top:0.7em;
+            }
+            .tl-step {
+                display:flex;
+                flex-direction:column;
+                align-items:center;
+                font-weight:700;
+                color:#4252a2;
+                font-size:1.04em;
+                min-width:85px;
+            }
+            .tl-dot {
+                width:34px; height:34px;
+                background:#3a6cf6;
+                color:#fff;
+                font-size:1.24em;
+                font-weight:900;
+                border-radius:50%;
+                display:flex; align-items:center; justify-content:center;
+                margin-bottom:5px;
+                box-shadow: 0 3px 15px #3a6cf66c;
+            }
+            .tl-step span {
+                display:block; color:#8386a6; font-size:0.92em; font-weight:400;
+            }
+            .vizimg {
+                margin:10px 11px 12px 0;
+                border: 2.5px solid #ccd9f7;
+                box-shadow: 2px 8px 27px #d6e4fa66;
+                border-radius:12px;
+                width:420px;
+                max-width:98%;
+                vertical-align:middle;
+                transition:box-shadow 0.2s, border 0.2s;
+            }
+            .vizimg:hover {
+                box-shadow: 0 0 0 6px #9bc6fa44;
+                border-color:#3a6cf6;
+            }
+            .imgbox {display:inline-block; margin-bottom:18px;}
+            .viz-grid {
+                display:flex;
+                flex-wrap:wrap;
+                gap:21px 17px;
+                margin-bottom:24px;
+            }
+            .viz-flex {
+                display:flex;
+                flex-wrap:wrap;
+                gap:29px 22px;
+                margin-bottom:2.6em;
+            }
+            @media (max-width:1000px) {
+                .container {padding:0.9em;}
+                .vizimg, .viz-grid, .summary-cards, .viz-flex { width:100%; flex-direction:column; }
+                .vizimg {width:100%;}
+                .summary-cards {flex-direction:column; gap:12px;}
+            }
+            .button-toggle {
+                padding: 8px 27px;
+                border-radius: 11px;
+                border:none;
+                background: #3a6cf6;
+                color:white;
+                font-weight:700;
+                margin-bottom:2.2em;
+                cursor:pointer;
+                float:right;
+                font-size:1.08em;
+                box-shadow:0 3px 13px #3a6cf611;
+            }
+            .button-toggle:hover {background: #1b2478;}
+            .section-bg {
+                background:#f2f6fe;
+                padding:2.2em 1.8em 0.5em 1.8em;
+                border-radius:16px;
+                margin-bottom:2.2em;
+                box-shadow:0 3px 15px #c3d4f532;
+            }
+            body.dark {
+                background: linear-gradient(120deg,#14192b 0%,#283869 100%);
+                color:#e4ebfa;
+            }
+            body.dark .container {
+                background:#202a43;
+                color:#e4ebfa;
+            }
+            body.dark h1,body.dark h2,body.dark h3 {color:#aed1ff;}
+            body.dark nav.toc {
+                background:rgba(50,54,90,0.22);
+                border:1px solid #384883;
+            }
+            body.dark .info-table th,.perf-table th,.feat-table th,.env-table th{background:#28396a;color:#cbe7ff;}
+            body.dark .info-table td,.perf-table td,.feat-table td,.env-table td{background:#1b233c;}
+            body.dark .info-table tr:nth-child(even) td,
+            body.dark .perf-table tr:nth-child(even) td,
+            body.dark .feat-table tr:nth-child(even) td,
+            body.dark .env-table tr:nth-child(even) td {
+                background: #223162;
+            }
+            body.dark .card {background:#18213a; border-left-color:#51d1e2;}
+            body.dark .card.summary {background:#253364;}
+            body.dark .card.error {background:#322035; border-left-color:#db4b5b;}
+            body.dark .vizimg {border-color:#225088; box-shadow: 2px 6px 22px #25397a99;}
+            .section-divider {
+                height:0; border:0; border-top:2.6px solid #e0eaff; margin:3.8em 0 2.1em 0;
+            }
+            body.dark .section-divider {border-top-color: #39477a;}
+            ::selection {background:#b1d0fd; color:#fff;}
+            body.dark ::selection {background:#2c7aff; color:#fff;}
+            </style>
+        </head>
+        <body>
+        <div class="container">
+        <button onclick="document.body.classList.toggle('dark')" class="button-toggle">Toggle Light/Dark</button>
+        
+        <nav class='toc'>
+            <a href='#summary'><span class="toc-ico">🏆</span> Executive Summary</a>
+            <a href='#dataset'><span class="toc-ico">📊</span> Dataset</a>
+            <a href='#env'><span class="toc-ico">🔗</span> Reproducibility</a>
+            <a href='#eda'><span class="toc-ico">🔍</span> EDA</a>
+            <a href='#harmonization'><span class="toc-ico">🧬</span> Harmonization</a>
+            <a href='#crossval'><span class="toc-ico">🧪</span> Cross-Validation</a>
+            <a href='#testset'><span class="toc-ico">📈</span> Test Performance</a>
+            <a href='#interpret'><span class="toc-ico">💡</span> Interpretability</a>
+            <a href='#plots'><span class="toc-ico">🖼️</span> Visualizations</a>
+        </nav>
+        
+        
+        <section id='summary'>
+            <div class='headline'>
+                <img src='https://img.icons8.com/fluency/48/brain.png' class='brandicon' alt='ENIGMA'>
+                <span>ENIGMA Pipeline Results Dashboard</span>
+                <span class='badge'>2024</span>
+            </div>
+            <div class='summary-cards'>
+                <div class='card summary'>
+                    <h3>Best Model</h3>
+                    <div class='score-icon'>🏆</div>
+                    <div class='num'>Lasso</div>
+                    <div class='score'>R² = 0.948</div>
+                </div>
+                <div class='card summary'>
+                    <h3>Samples</h3>
+                    <div class='score-icon'>🧑‍🤝‍🧑</div>
+                    <div class='num'>2000</div>
+                </div>
+                <div class='card summary'>
+                    <h3>Features</h3>
+                    <div class='score-icon'>🔢</div>
+                    <div class='num'>84</div>
+                </div>
+            </div>
+            <div class='section-desc'>
+                <span>This report presents the full ENIGMA pipeline analysis, from harmonization and feature engineering to cross-validation, model performance, and interpretability. <b>Interactive, visual, and ready for stakeholders.</b></span>
+            </div>
+        </section>
+        
+        
+        <div class='timeline'>
+            <div class='tl-step'><div class='tl-dot'>1</div><div>Data <span>Loaded</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>2</div><div>EDA <span>Exploration</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>3</div><div>Harmonization <span>(ComBat)</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>4</div><div>Model <span>Training</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>5</div><div>Validation <span>and Test</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>6</div><div>Interpretability <span>and Results</span></div></div>
+        </div>
+        
+        <section id='dataset'><h2>Dataset Information</h2>
+            <div class='section-bg'>
+        <table class='info-table'>
+        <tr><th>Samples</th><td>2000</td></tr>
+        <tr><th>Features</th><td>84</td></tr>
+        <tr><th>Missing Values</th><td>0</td></tr>
+        </table>
+        </div>
+        </section>
+        <section id='env'><h2>Reproducibility & Environment</h2>
+            <div class='section-bg'><table class='env-table'><tr><th>python</th><th>pandas</th><th>numpy</th><th>sklearn</th><th>shap</th><th>seed</th><th>date</th></tr><tr><td>3.10.18</td><td>2.3.0</td><td>2.2.6</td><td>1.7.0</td><td>0.48.0</td><td>42</td><td>2025-07-01 13:55</td></tr></table></div>
+        </section>
+        <section id='eda'>
+            <h2 id='eda'>Exploratory Data Analysis</h2><table class="dataframe info-table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Variable</th>
+      <th>Stats</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Sex (counts)</td>
+      <td>{0: 1024, 1: 976}</td>
+    </tr>
+    <tr>
+      <td>Age (mean ± std)</td>
+      <td>35.2 ± 10.2</td>
+    </tr>
+    <tr>
+      <td>Site (mean ± std)</td>
+      <td>2.0 ± 1.4</td>
+    </tr>
+    <tr>
+      <td>Working Memory (mean ± std)</td>
+      <td>311.36 ± 325.89</td>
+    </tr>
+  </tbody>
+</table><div class='viz-grid'><img src="EDA/Age_hist.png" class="vizimg"><img src="EDA/Sex_hist.png" class="vizimg"><img src="EDA/Site_hist.png" class="vizimg"><img src="EDA/Working_Memory_hist.png" class="vizimg"><img src="EDA/Feature_Mean_hist.png" class="vizimg"><img src="EDA/Feature_Std_hist.png" class="vizimg"><img src="EDA/missing_values_heatmap.png" class="vizimg"></div>
+        </section>
+        <section id='harmonization'>
+            <h2 id='harmonization'>ComBat Harmonization</h2><div class='card'>Applied successfully.</div>
+        </section>
+        <section id='crossval'>
+            
+        <h2 id='crossval'>Nested Cross-Validation Results (5 Outer Folds)</h2>
+        <table class='perf-table'><tr><th>Model</th><th>Mean R² (±SD)</th></tr><tr><td>Lasso</td><td>0.946 ± 0.004</td></tr><tr><td>XGBoost</td><td>0.933 ± 0.006</td></tr><tr><td>Random Forest</td><td>0.929 ± 0.006</td></tr></table>
+        
+        </section>
+        <section id='testset'>
+            <h2 id='testset'>Test Set Performance</h2><table class="dataframe perf-table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Model</th>
+      <th>R2</th>
+      <th>MAE</th>
+      <th>Explained Variance</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Lasso</td>
+      <td>0.948</td>
+      <td>65.083</td>
+      <td>0.949</td>
+    </tr>
+    <tr>
+      <td>XGBoost</td>
+      <td>0.938</td>
+      <td>71.160</td>
+      <td>0.938</td>
+    </tr>
+    <tr>
+      <td>Random Forest</td>
+      <td>0.936</td>
+      <td>70.843</td>
+      <td>0.936</td>
+    </tr>
+  </tbody>
+</table>
+        </section>
+        <section id='interpret'>
+            
+            <h2 id='interpret'>Interpretability</h2>
+            <div class='viz-flex'>
+                <div class='card'>
+                    <h3>Top 10 XGBoost Features</h3>
+                    <table class='feat-table'><tr><th>Feature</th><th>Mean |SHAP value|</th></tr><tr><td>Left-Hippocampus</td><td>185.46</td></tr><tr><td>Right-Amygdala</td><td>154.98</td></tr><tr><td>lh_inferiorparietal</td><td>1.98</td></tr><tr><td>lh_inferiortemporal</td><td>1.91</td></tr><tr><td>Right-Thalamus-Proper</td><td>1.22</td></tr><tr><td>lh_entorhinal</td><td>1.15</td></tr><tr><td>lh_cuneus</td><td>1.08</td></tr><tr><td>rh_entorhinal</td><td>0.81</td></tr><tr><td>rh_cuneus</td><td>0.75</td></tr><tr><td>lh_lateraloccipital</td><td>0.67</td></tr></table>
+                </div>
+                <div class='card'>
+                    <h3>Top 10 RF Permutation Importances</h3>
+                    <table class='feat-table'><tr><th>Feature</th><th>Mean Importance</th></tr><tr><td>Left-Hippocampus</td><td>0.982</td></tr><tr><td>Right-Amygdala</td><td>0.684</td></tr><tr><td>rh_inferiorparietal</td><td>0.000</td></tr><tr><td>rh_lingual</td><td>0.000</td></tr><tr><td>lh_fusiform</td><td>0.000</td></tr><tr><td>lh_parsopercularis</td><td>0.000</td></tr><tr><td>rh_pericalcarine</td><td>0.000</td></tr><tr><td>rh_rostralanteriorcingulate</td><td>0.000</td></tr><tr><td>rh_parstriangularis</td><td>0.000</td></tr><tr><td>Left-Thalamus-Proper</td><td>0.000</td></tr></table>
+                </div>
+            </div>
+            
+        </section>
+        <h2 id='plots'>All Visualizations</h2>
+        <div class='viz-grid'><div class="imgbox"><img src="EDA/Age_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/Sex_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/Site_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/Working_Memory_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/Feature_Mean_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/Feature_Std_hist.png" class="vizimg"></div><div class="imgbox"><img src="EDA/missing_values_heatmap.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/SHAP_summary_xgb.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/SHAP_bar_xgb.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/PDP_Left-Hippocampus_xgb.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/PDP_Right-Amygdala_xgb.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/PDP_lh_inferiorparietal_xgb.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/model_performance_comparison_final.png" class="vizimg"></div><div class="imgbox"><img src="Visualisations/calibration_plot_xgb_final.png" class="vizimg"></div></div>
+        <footer style='font-size:1.13em;margin-top:3.3em;text-align:right;color:#97a5ca;'>
+            ENIGMA Pipeline Dashboard &mdash; generated 2025-07-01 14:07
+        </footer>
+        </div>
+        </body>
+        </html>
+        

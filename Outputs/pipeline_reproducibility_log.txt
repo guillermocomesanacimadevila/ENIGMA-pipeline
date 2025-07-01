@@ -1,0 +1,7 @@
+python: 3.10.18
+pandas: 2.3.0
+numpy: 2.2.6
+sklearn: 1.7.0
+shap: 0.48.0
+seed: 42
+date: 2025-07-01 13:55
