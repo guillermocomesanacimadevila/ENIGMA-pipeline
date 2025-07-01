@@ -5,9 +5,10 @@
 # Sets up Conda environment, installs dependencies, runs pipeline
 # =========================================================
 
-ENV_NAME="enigma-pipeline9"
+ENV_NAME="enigma-pipeline"
 PYTHON_VERSION=3.10
 SCRIPT_NAME="main.py"   # Change to your actual Python filename if needed
+REPORT_PATH="Outputs/ENIGMA_pipeline_report.html"
 
 set -e  # Stop if any error occurs
 
@@ -33,7 +34,7 @@ conda activate $ENV_NAME
 
 # 4. Install dependencies (safe for rerun)
 echo -e "\033[0;34m[INFO]\033[0m Installing Python packages via conda and pip..."
-conda install -y numpy pandas matplotlib seaborn scikit-learn joblib jinja2 nibabel
+conda install -y numpy pandas matplotlib seaborn scikit-learn joblib jinja2 nibabel 
 pip install --upgrade pip
 pip install xgboost shap neuroHarmonize neuroCombat
 
@@ -62,6 +63,17 @@ if [ $STATUS -eq 0 ]; then
     echo -e "\033[0;32mPipeline completed successfully!\033[0m"
     echo "See Outputs/ENIGMA_pipeline_report.html for results."
     echo "----------------------------------------------"
+    # --- OPEN REPORT IN DEFAULT BROWSER ---
+    if [ -f "$REPORT_PATH" ]; then
+        # For macOS:
+        open "$REPORT_PATH"
+        # For Linux (uncomment if needed):
+        # xdg-open "$REPORT_PATH" >/dev/null 2>&1 &
+        # For Windows Git Bash (uncomment if needed):
+        # start "" "$REPORT_PATH"
+    else
+        echo -e "\033[0;31m[ERROR]\033[0m Report not found at $REPORT_PATH."
+    fi
 else
     echo -e "\033[0;31mPipeline failed.\033[0m See Outputs/pipeline_run.log for error details."
     exit 3
