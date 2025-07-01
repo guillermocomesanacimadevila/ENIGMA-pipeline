@@ -10,7 +10,6 @@ import seaborn as sns
 import joblib
 import shap
 import warnings
-from jinja2 import Template
 from datetime import datetime
 
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold, cross_val_score
@@ -25,13 +24,9 @@ except ImportError:
     harmonizationLearn = None
 
 warnings.filterwarnings('ignore')
-# Modern, colorblind, and pro look
 sns.set_theme(style="whitegrid", palette="colorblind", font_scale=1.2)
 plt.rcParams.update({'font.family': 'DejaVu Sans', 'axes.facecolor': '#fafbfc', 'axes.edgecolor': '#dddddd'})
 
-# ============================
-# SET SEEDS FOR REPRODUCIBILITY
-# ============================
 RANDOM_STATE = 42
 random.seed(RANDOM_STATE)
 np.random.seed(RANDOM_STATE)
@@ -213,7 +208,6 @@ class ENIGMAPipeline:
         plt.savefig(fname, dpi=250); plt.close()
         eda_imgs.append(fname)
         self.plots += eda_imgs
-        # EDA Table
         eda_df = pd.DataFrame([
             ["Sex (counts)", str(eda_stats.get('sex_counts', '-'))],
             ["Age (mean ± std)", f"{eda_stats.get('age_mean', '-'):0.1f} ± {eda_stats.get('age_std', '-'):0.1f}"],
@@ -287,7 +281,6 @@ class ENIGMAPipeline:
                                     cv=kf_outer, scoring='r2')
         results['Random Forest'] = rf_scores
         self.stats['nested_cv'] = {k: (float(np.mean(v)), float(np.std(v))) for k, v in results.items()}
-        # Table for results
         rows = "".join([
             f"<tr><td>{model}</td><td>{np.mean(scores):.3f} ± {np.std(scores):.3f}</td></tr>"
             for model, scores in results.items()
@@ -314,7 +307,6 @@ class ENIGMAPipeline:
         self.models = {'Lasso': lasso, 'XGBoost': xgb, 'Random Forest': rf}
 
     def evaluate(self):
-        # Table for test metrics
         perf_dict = {}
         for name, model in self.models.items():
             scores = model.evaluate(self.X_test, self.y_test)
@@ -328,13 +320,11 @@ class ENIGMAPipeline:
         try:
             explainer = shap.Explainer(self.models['XGBoost'].model)
             shap_values = explainer(self.X_test)
-            # SHAP summary plot (with actual feature names)
             shap_summary_path = f"{self.out_dir}/Visualisations/SHAP_summary_xgb.png"
             plt.figure()
             shap.summary_plot(shap_values, self.X_test, feature_names=self.feature_names, show=False)
             plt.tight_layout(); plt.savefig(shap_summary_path, dpi=260, bbox_inches='tight'); plt.close()
             self.plots.append(shap_summary_path)
-            # SHAP bar plot (actual feature names)
             shap_bar_path = f"{self.out_dir}/Visualisations/SHAP_bar_xgb.png"
             plt.figure()
             shap.plots.bar(shap_values, show=False)
@@ -344,7 +334,6 @@ class ENIGMAPipeline:
             top_idx = np.argsort(mean_abs_shap)[::-1][:10]
             top_feats = [self.feature_names[i] for i in top_idx]
             top_vals = mean_abs_shap[top_idx]
-            # TABLE: top features
             self.top_feats_table = "<table class='feat-table'><tr><th>Feature</th><th>Mean |SHAP value|</th></tr>"
             self.top_feats_table += "".join([
                 f"<tr><td>{top_feats[i]}</td><td>{top_vals[i]:.2f}</td></tr>"
@@ -352,7 +341,6 @@ class ENIGMAPipeline:
             ])
             self.top_feats_table += "</table>"
             self.stats['top10_shap'] = dict(zip(top_feats, top_vals))
-            # RF permutation importance
             perm = permutation_importance(self.models['Random Forest'].model, self.X_test, self.y_test,
                                           n_repeats=10, random_state=self.random_state)
             sorted_idx = perm.importances_mean.argsort()[::-1][:10]
@@ -364,7 +352,6 @@ class ENIGMAPipeline:
                 for i in range(len(perm_names))
             ])
             perm_table += "</table>"
-            # PDP for XGBoost top 3 (with real labels)
             for j in range(3):
                 idx = top_idx[j]
                 PDP_path = f"{self.out_dir}/Visualisations/PDP_{top_feats[j].replace(' ', '_')}_xgb.png"
@@ -393,7 +380,6 @@ class ENIGMAPipeline:
             print("Interpretation step failed:", e)
 
     def visualise(self):
-        # Model performance comparison
         perf = pd.DataFrame({
             'Model': list(self.models.keys()),
             'R2': [r2_score(self.y_test, m.predict(self.X_test)) for m in self.models.values()],
@@ -407,7 +393,6 @@ class ENIGMAPipeline:
         plt.xlabel("")
         plt.tight_layout(); plt.savefig(bar_path, dpi=260); plt.close()
         self.plots.append(bar_path)
-        # Calibration plot (XGBoost)
         cal_path = f'{self.out_dir}/Visualisations/calibration_plot_xgb_final.png'
         plt.figure(figsize=(6, 6))
         plt.scatter(self.y_test, self.models['XGBoost'].predict(self.X_test), alpha=0.7, edgecolor='k', s=70, c="#16a085")
@@ -432,140 +417,388 @@ class ENIGMAPipeline:
         self.models['Random Forest'].save(f'{self.out_dir}/Models/random_forest_model_final.pkl')
         joblib.dump(self.scaler, f'{self.out_dir}/Models/scaler_final.pkl')
 
+    # ============= MODERN, BEAUTIFUL HTML REPORT =============
+
     def html_report(self, filename="ENIGMA_pipeline_report.html"):
-        imgs_html = "".join([f'<img src="{os.path.relpath(x, self.out_dir)}" class="vizimg">' for x in self.plots])
-        # Table of Contents
+        imgs_html = "".join([
+            f'<div class="imgbox"><img src="{os.path.relpath(x, self.out_dir)}" class="vizimg"></div>' for x in self.plots
+        ])
+
         toc = """
         <nav class='toc'>
-        <b>Contents:</b>
-        <a href='#summary'>Executive Summary</a>
-        <a href='#dataset'>Dataset Info</a>
-        <a href='#env'>Reproducibility</a>
-        <a href='#eda'>EDA</a>
-        <a href='#harmonization'>Harmonization</a>
-        <a href='#crossval'>Cross-Validation</a>
-        <a href='#testset'>Test Performance</a>
-        <a href='#interpret'>Interpretability</a>
-        <a href='#plots'>Visualizations</a>
+            <a href='#summary'><span class="toc-ico">🏆</span> Executive Summary</a>
+            <a href='#dataset'><span class="toc-ico">📊</span> Dataset</a>
+            <a href='#env'><span class="toc-ico">🔗</span> Reproducibility</a>
+            <a href='#eda'><span class="toc-ico">🔍</span> EDA</a>
+            <a href='#harmonization'><span class="toc-ico">🧬</span> Harmonization</a>
+            <a href='#crossval'><span class="toc-ico">🧪</span> Cross-Validation</a>
+            <a href='#testset'><span class="toc-ico">📈</span> Test Performance</a>
+            <a href='#interpret'><span class="toc-ico">💡</span> Interpretability</a>
+            <a href='#plots'><span class="toc-ico">🖼️</span> Visualizations</a>
         </nav>
         """
-        # Executive summary card
+
         best_model = max(self.stats['final_test'], key=lambda k: self.stats['final_test'][k]['R2'])
         best_score = self.stats['final_test'][best_model]['R2']
         summary_card = f"""
         <section id='summary'>
             <div class='headline'>
-                <span>ENIGMA-Pipeline Results</span>
-                <span class='badge'>v2024</span>
+                <img src='https://img.icons8.com/fluency/48/brain.png' class='brandicon' alt='ENIGMA'>
+                <span>ENIGMA Pipeline Results Dashboard</span>
+                <span class='badge'>2024</span>
             </div>
             <div class='summary-cards'>
-                <div class='card summary'><h3>Best Model (R²)</h3><div class='num'>{best_model}</div><div class='score'>{best_score:.3f}</div></div>
-                <div class='card summary'><h3>Samples</h3><div class='num'>{len(self.df_raw)}</div></div>
-                <div class='card summary'><h3>Features</h3><div class='num'>{len(self.feature_names)}</div></div>
+                <div class='card summary'>
+                    <h3>Best Model</h3>
+                    <div class='score-icon'>🏆</div>
+                    <div class='num'>{best_model}</div>
+                    <div class='score'>R² = {best_score:.3f}</div>
+                </div>
+                <div class='card summary'>
+                    <h3>Samples</h3>
+                    <div class='score-icon'>🧑‍🤝‍🧑</div>
+                    <div class='num'>{len(self.df_raw)}</div>
+                </div>
+                <div class='card summary'>
+                    <h3>Features</h3>
+                    <div class='score-icon'>🔢</div>
+                    <div class='num'>{len(self.feature_names)}</div>
+                </div>
+            </div>
+            <div class='section-desc'>
+                <span>This report presents the full ENIGMA pipeline analysis, from harmonization and feature engineering to cross-validation, model performance, and interpretability. <b>Interactive, visual, and ready for stakeholders.</b></span>
             </div>
         </section>
         """
 
+        timeline = """
+        <div class='timeline'>
+            <div class='tl-step'><div class='tl-dot'>1</div><div>Data <span>Loaded</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>2</div><div>EDA <span>Exploration</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>3</div><div>Harmonization <span>(ComBat)</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>4</div><div>Model <span>Training</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>5</div><div>Validation <span>and Test</span></div></div>
+            <div class='tl-step'><div class='tl-dot'>6</div><div>Interpretability <span>and Results</span></div></div>
+        </div>
+        """
+
         html_template = f"""
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
-        <title>ENIGMA Pipeline Report</title>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-        body {{
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0; background: linear-gradient(115deg,#f3f6ff 0%,#e0e6ff 100%);
-            color:#223;
-            min-height:100vh;
-        }}
-        .container {{
-            max-width:1000px; margin:2.5em auto; padding:2.3em 2.2em 2.2em 2.2em; background:rgba(255,255,255,0.97);
-            box-shadow:0 4px 32px #0002; border-radius:16px;
-        }}
-        h1,h2,h3 {{ color: #253c70; margin-top: 0.7em; font-weight:800; letter-spacing:-0.02em; }}
-        h2 {{ border-bottom:2px solid #e6ebfa; padding-bottom:0.13em; }}
-        .headline {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; font-size:2.1em; font-weight:700; letter-spacing:-0.02em;}}
-        .badge {{ background:#2542b7; color:#fff; padding:3px 14px; border-radius:18px; font-size:1.1em; letter-spacing:0.04em; font-weight:400; }}
-        nav.toc {{
-            display:flex; flex-wrap:wrap; gap:1.5em; padding:0.7em 0 1.1em 0; font-size:1.08em;
-            background:rgba(41,57,121,0.06); border-radius:12px; margin-bottom:2em;
-        }}
-        nav.toc a {{ color:#274ef6; text-decoration:none; font-weight:500; transition:color 0.17s; }}
-        nav.toc a:hover {{ color:#092073; text-decoration:underline; }}
-        .info-table,.perf-table,.feat-table,.env-table {{
-            width:100%; border-collapse:collapse; margin-bottom:2em; font-size:1.07em;
-        }}
-        .info-table th, .info-table td,
-        .perf-table th, .perf-table td,
-        .feat-table th, .feat-table td,
-        .env-table th, .env-table td {{
-            border-bottom:1px solid #e2e6f2; padding:10px 15px; text-align:left;
-        }}
-        .info-table th,.perf-table th,.feat-table th,.env-table th{{ background:#eef1fc; font-weight:600; }}
-        .info-table td,.perf-table td,.feat-table td,.env-table td{{ background:#fff; }}
-        .card {{
-            background:#f7f8fd; border-radius:12px; box-shadow:0 1px 7px #0001; padding:20px 22px; margin-bottom:20px;
-            border-left: 6px solid #4f65ea;
-        }}
-        .card.summary {{
-            border-left: none; box-shadow:0 1px 6px #0001; text-align:center; margin:0 16px 0 0;
-            min-width:150px; flex:1 1 0;
-        }}
-        .card.summary .num {{ font-size:2.1em; font-weight:700; color:#4f65ea; }}
-        .card.summary .score {{ font-size:2.5em; font-weight:800; color:#18ac95; }}
-        .card.error {{ border-left:6px solid #e6344b; color:#be2238; background:#fce5ea; }}
-        .summary-cards {{ display:flex; gap:18px; margin-bottom:2.4em; }}
-        .vizimg {{
-            margin:22px 16px 14px 0; border: 1.6px solid #d7e0ff; box-shadow: 2px 2px 14px #f4f5fa;
-            border-radius:10px; width:420px; max-width:98%; vertical-align:middle;
-        }}
-        .viz-grid {{ display:flex; flex-wrap:wrap; gap:16px 10px; margin-bottom:20px; }}
-        .viz-flex {{ display:flex; flex-wrap:wrap; gap:18px 18px; margin-bottom:2em; }}
-        @media (max-width:800px) {{
-            .container {{padding:0.5em;}}
-            .vizimg, .viz-grid, .summary-cards, .viz-flex {{ width:100%; flex-direction:column; }}
-            .vizimg {{width:100%;}}
-        }}
-        .button-toggle {{ padding: 7px 22px; border-radius: 8px; border:none; background: #4f65ea; color:white; font-weight:600; margin-bottom:1.6em; cursor:pointer; float:right;}}
-        .button-toggle:hover {{background: #2c3878;}}
-        body.dark {{
-            background: linear-gradient(125deg,#171e3d 0%,#303a60 100%);
-            color:#e9f0fa;
-        }}
-        body.dark .container {{background:#232b3b; color:#e9f0fa;}}
-        body.dark h1,body.dark h2,body.dark h3 {color:#b5cfff;}
-        body.dark nav.toc {{background:rgba(50,54,90,0.18);}}
-        body.dark .info-table th,.perf-table th,.feat-table th,.env-table th{{background:#232b4f;color:#ccd5ff;}}
-        body.dark .info-table td,.perf-table td,.feat-table td,.env-table td{{background:#222a39;}}
-        body.dark .card {{background:#222a39; border-left-color:#7cc9e9;}}
-        body.dark .card.summary {{background:#283560;}}
-        body.dark .card.error {{background:#33202a; border-left-color:#c8484b;}}
-        body.dark .vizimg {{border-color:#3443a0;}}
-        ::selection {{background:#a4b5ff; color:#fff;}}
-        </style>
+            <title>ENIGMA Pipeline Report</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+            <style>
+            body {{
+                font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+                margin: 0;
+                background: linear-gradient(120deg,#f6f9fc 0%,#e0e7ff 100%);
+                color:#1b2232;
+            }}
+            .container {{
+                max-width:1100px;
+                margin: 3.5em auto 2.5em auto;
+                padding: 2.8em 2.2em 2.2em 2.2em;
+                background:rgba(255,255,255,0.98);
+                box-shadow:0 9px 54px #00235415;
+                border-radius:32px;
+            }}
+            .brandicon {{
+                height:48px;
+                margin-right: 12px;
+                vertical-align:middle;
+            }}
+            h1,h2,h3 {{
+                color: #1a237e;
+                font-weight:900;
+                margin-top: 0.7em;
+            }}
+            h2 {{
+                border-bottom:3px solid #f3f4fb;
+                padding-bottom:0.18em;
+                margin-bottom: 1.4em;
+                letter-spacing:-0.02em;
+            }}
+            .headline {{
+                display:flex;
+                align-items:center;
+                gap: 18px;
+                margin-bottom:20px;
+                font-size:2.3em;
+                font-weight:900;
+                letter-spacing:-0.02em;
+            }}
+            .badge {{
+                background:#3a6cf6;
+                color:#fff;
+                padding:4px 18px;
+                border-radius:20px;
+                font-size:1em;
+                font-weight:700;
+                letter-spacing:0.06em;
+                box-shadow: 0 2px 10px #3a6cf617;
+                margin-left:auto;
+            }}
+            nav.toc {{
+                display:flex;
+                flex-wrap:wrap;
+                gap:1.25em;
+                padding:1em 0 1.4em 0;
+                font-size:1.13em;
+                background:rgba(80,111,221,0.06);
+                border-radius:18px;
+                margin-bottom:2.6em;
+                border:1.5px solid #e7eafe;
+                box-shadow: 0 1px 7px #d6e2ff24;
+                font-weight:700;
+            }}
+            .toc-ico {{font-size:1.13em;vertical-align:middle;margin-right:0.11em;}}
+            nav.toc a {{
+                color:#2a3fa6;
+                text-decoration:none;
+                border-bottom:2px solid transparent;
+                padding-bottom:1px;
+                transition:all 0.17s;
+                border-radius:4px;
+            }}
+            nav.toc a:hover {{
+                color:#253082;
+                border-bottom:2px solid #3a6cf6;
+                background:#e6ecff;
+            }}
+            section {{
+                margin-bottom:3em;
+            }}
+            .section-desc {{
+                margin-top:18px;
+                margin-bottom:0.8em;
+                font-size:1.18em;
+                color:#263c74;
+                background: #f3f7fe;
+                padding:14px 19px;
+                border-radius:13px;
+                box-shadow:0 2px 14px #e2eaf8;
+            }}
+            .info-table,.perf-table,.feat-table,.env-table {{
+                width:100%;
+                border-collapse:collapse;
+                margin-bottom:2.2em;
+                font-size:1.11em;
+                box-shadow:0 2px 16px #e3eafc21;
+                background:#f8faff;
+                border-radius:8px;
+                overflow:hidden;
+            }}
+            .info-table th, .info-table td,
+            .perf-table th, .perf-table td,
+            .feat-table th, .feat-table td,
+            .env-table th, .env-table td {{
+                border-bottom:1.2px solid #e8eefd;
+                padding:14px 17px;
+                text-align:left;
+            }}
+            .info-table th, .perf-table th, .feat-table th, .env-table th {{
+                background:#eef4ff;
+                font-weight:700;
+                color:#264182;
+                letter-spacing:0.01em;
+            }}
+            .info-table td, .perf-table td, .feat-table td, .env-table td {{
+                background:#f8faff;
+                font-weight:500;
+            }}
+            .info-table tr:nth-child(even) td,
+            .perf-table tr:nth-child(even) td,
+            .feat-table tr:nth-child(even) td,
+            .env-table tr:nth-child(even) td {{
+                background: #e7eafd;
+            }}
+            .card {{
+                background:#f7f9ff;
+                border-radius:17px;
+                box-shadow:0 3px 18px #b6c4ea17;
+                padding:28px 30px;
+                margin-bottom:24px;
+                border-left: 7px solid #3a6cf6;
+                font-size:1.09em;
+            }}
+            .card.summary {{
+                border-left: none;
+                box-shadow:0 2px 10px #3a6cf616;
+                text-align:center;
+                margin:0 22px 0 0;
+                min-width:160px; flex:1 1 0;
+                display:flex;
+                flex-direction:column;
+                justify-content:center;
+                align-items:center;
+            }}
+            .card.summary .num {{ font-size:2.45em; font-weight:900; color:#3a6cf6; }}
+            .card.summary .score {{ font-size:2.2em; font-weight:900; color:#14b9b2; }}
+            .card.summary .score-icon {{ font-size:2.2em;margin-bottom:0.18em; }}
+            .card.error {{ border-left:7px solid #e6344b; color:#be2238; background:#fff0f2; }}
+            .summary-cards {{
+                display:flex;
+                gap:29px;
+                margin-bottom:2.7em;
+            }}
+            .timeline {{
+                display:flex;
+                gap:19px;
+                justify-content:center;
+                align-items:center;
+                margin-bottom:2.7em;
+                margin-top:0.7em;
+            }}
+            .tl-step {{
+                display:flex;
+                flex-direction:column;
+                align-items:center;
+                font-weight:700;
+                color:#4252a2;
+                font-size:1.04em;
+                min-width:85px;
+            }}
+            .tl-dot {{
+                width:34px; height:34px;
+                background:#3a6cf6;
+                color:#fff;
+                font-size:1.24em;
+                font-weight:900;
+                border-radius:50%;
+                display:flex; align-items:center; justify-content:center;
+                margin-bottom:5px;
+                box-shadow: 0 3px 15px #3a6cf66c;
+            }}
+            .tl-step span {{
+                display:block; color:#8386a6; font-size:0.92em; font-weight:400;
+            }}
+            .vizimg {{
+                margin:10px 11px 12px 0;
+                border: 2.5px solid #ccd9f7;
+                box-shadow: 2px 8px 27px #d6e4fa66;
+                border-radius:12px;
+                width:420px;
+                max-width:98%;
+                vertical-align:middle;
+                transition:box-shadow 0.2s, border 0.2s;
+            }}
+            .vizimg:hover {{
+                box-shadow: 0 0 0 6px #9bc6fa44;
+                border-color:#3a6cf6;
+            }}
+            .imgbox {{display:inline-block; margin-bottom:18px;}}
+            .viz-grid {{
+                display:flex;
+                flex-wrap:wrap;
+                gap:21px 17px;
+                margin-bottom:24px;
+            }}
+            .viz-flex {{
+                display:flex;
+                flex-wrap:wrap;
+                gap:29px 22px;
+                margin-bottom:2.6em;
+            }}
+            @media (max-width:1000px) {{
+                .container {{padding:0.9em;}}
+                .vizimg, .viz-grid, .summary-cards, .viz-flex {{ width:100%; flex-direction:column; }}
+                .vizimg {{width:100%;}}
+                .summary-cards {{flex-direction:column; gap:12px;}}
+            }}
+            .button-toggle {{
+                padding: 8px 27px;
+                border-radius: 11px;
+                border:none;
+                background: #3a6cf6;
+                color:white;
+                font-weight:700;
+                margin-bottom:2.2em;
+                cursor:pointer;
+                float:right;
+                font-size:1.08em;
+                box-shadow:0 3px 13px #3a6cf611;
+            }}
+            .button-toggle:hover {{background: #1b2478;}}
+            .section-bg {{
+                background:#f2f6fe;
+                padding:2.2em 1.8em 0.5em 1.8em;
+                border-radius:16px;
+                margin-bottom:2.2em;
+                box-shadow:0 3px 15px #c3d4f532;
+            }}
+            body.dark {{
+                background: linear-gradient(120deg,#14192b 0%,#283869 100%);
+                color:#e4ebfa;
+            }}
+            body.dark .container {{
+                background:#202a43;
+                color:#e4ebfa;
+            }}
+            body.dark h1,body.dark h2,body.dark h3 {{color:#aed1ff;}}
+            body.dark nav.toc {{
+                background:rgba(50,54,90,0.22);
+                border:1px solid #384883;
+            }}
+            body.dark .info-table th,.perf-table th,.feat-table th,.env-table th{{background:#28396a;color:#cbe7ff;}}
+            body.dark .info-table td,.perf-table td,.feat-table td,.env-table td{{background:#1b233c;}}
+            body.dark .info-table tr:nth-child(even) td,
+            body.dark .perf-table tr:nth-child(even) td,
+            body.dark .feat-table tr:nth-child(even) td,
+            body.dark .env-table tr:nth-child(even) td {{
+                background: #223162;
+            }}
+            body.dark .card {{background:#18213a; border-left-color:#51d1e2;}}
+            body.dark .card.summary {{background:#253364;}}
+            body.dark .card.error {{background:#322035; border-left-color:#db4b5b;}}
+            body.dark .vizimg {{border-color:#225088; box-shadow: 2px 6px 22px #25397a99;}}
+            .section-divider {{
+                height:0; border:0; border-top:2.6px solid #e0eaff; margin:3.8em 0 2.1em 0;
+            }}
+            body.dark .section-divider {{border-top-color: #39477a;}}
+            ::selection {{background:#b1d0fd; color:#fff;}}
+            body.dark ::selection {{background:#2c7aff; color:#fff;}}
+            </style>
         </head>
         <body>
         <div class="container">
         <button onclick="document.body.classList.toggle('dark')" class="button-toggle">Toggle Light/Dark</button>
         {toc}
         {summary_card}
-        <section id='dataset'><h2>Dataset Information</h2>{self.dataset_table}</section>
-        <section id='env'><h2>Reproducibility & Environment</h2>{self.env_table}</section>
-        {self.eda_section}
-        {self.harmo_section}
-        {self.cv_section}
-        {self.eval_section}
-        {self.interp_section}
+        {timeline}
+        <section id='dataset'><h2>Dataset Information</h2>
+            <div class='section-bg'>{self.dataset_table}</div>
+        </section>
+        <section id='env'><h2>Reproducibility & Environment</h2>
+            <div class='section-bg'>{self.env_table}</div>
+        </section>
+        <section id='eda'>
+            {self.eda_section}
+        </section>
+        <section id='harmonization'>
+            {self.harmo_section}
+        </section>
+        <section id='crossval'>
+            {self.cv_section}
+        </section>
+        <section id='testset'>
+            {self.eval_section}
+        </section>
+        <section id='interpret'>
+            {self.interp_section}
+        </section>
         <h2 id='plots'>All Visualizations</h2>
         <div class='viz-grid'>{imgs_html}</div>
-        <div style='height:24px;'></div>
-        <footer style='font-size:1.05em;margin-top:2.3em;text-align:right;color:#999;'>ENIGMA-like pipeline dashboard — generated on {datetime.now().strftime("%Y-%m-%d %H:%M")}</footer>
+        <footer style='font-size:1.13em;margin-top:3.3em;text-align:right;color:#97a5ca;'>
+            ENIGMA Pipeline Dashboard &mdash; generated {datetime.now().strftime("%Y-%m-%d %H:%M")}
+        </footer>
         </div>
         </body>
         </html>
         """
+
         path = os.path.join(self.out_dir, filename)
         with open(path, "w") as f:
             f.write(html_template)
