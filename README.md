@@ -41,7 +41,8 @@ A reproducible, scalable, and modular machine learning pipeline for ENIGMA-like 
     - 📦 Install dependencies from conda and pip: pandas, numpy, matplotlib, seaborn, scikit-learn, xgboost, shap, jinja2, neuroHarmonize, etc.
     - 🚦 Run the main pipeline.
   
-4.0 **HTML/CSS DashboardE**
+4.0 **HTML/CSS Dashboard**
+
 <img width="1171" alt="Captura de pantalla 2025-07-03 a las 13 01 30" src="https://github.com/user-attachments/assets/6cf2b073-207e-4b7b-afcb-1066dc2b5778" />
 
 
