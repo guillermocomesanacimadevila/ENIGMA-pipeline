@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import random
 import platform
 import numpy as np
@@ -76,6 +77,9 @@ class XGBModel(BaseModel):
         self.grid_search.fit(X, y)
         self.model = self.grid_search.best_estimator_
 
+    def predict(self, X):
+        return self.model.predict(X)
+
     def save(self, path):
         joblib.dump(self.model, path)
 
@@ -93,8 +97,9 @@ class RFModel(BaseModel):
 # ========== Pipeline Class ===========
 
 class ENIGMAPipeline:
-    def __init__(self, data_dir='Data', out_dir='Outputs', random_state=42):
-        self.data_dir = data_dir
+    def __init__(self, smri_path, wm_path, out_dir='Outputs', random_state=42):
+        self.smri_path = smri_path
+        self.wm_path = wm_path
         self.out_dir = out_dir
         self.random_state = random_state
         self.scaler = None
@@ -130,19 +135,30 @@ class ENIGMAPipeline:
 
     def load_data(self):
         try:
-            df_sMRI = pd.read_csv(f'{self.data_dir}/enigma_like_sMRI.csv')
-            df_WM = pd.read_csv(f'{self.data_dir}/enigma_like_WM.csv')
+            df_sMRI = pd.read_csv(self.smri_path)
+            df_WM = pd.read_csv(self.wm_path)
+            # Only bring over Working_Memory from WM
+            df_WM = df_WM[['Sample_ID', 'Working_Memory']]
             df_raw = pd.merge(df_sMRI, df_WM, on='Sample_ID')
         except Exception as e:
             raise FileNotFoundError(f"Could not load required CSVs: {e}")
-        self.meta = df_raw[['Sample_ID', 'Site', 'Age', 'Sex']]
-        exclude_cols = ['Sample_ID', 'Site', 'Working_Memory']
+        # Diagnosis auto-detect
+        diagnosis_col = None
+        for cand in ['Diagnosis', 'diagnosis', 'DX', 'Group']:
+            if cand in df_raw.columns:
+                diagnosis_col = cand
+                break
+        meta_cols = ['Sample_ID', 'Site', 'Age', 'Sex']
+        if diagnosis_col: meta_cols.append(diagnosis_col)
+        self.meta = df_raw[meta_cols]
+        exclude_cols = meta_cols + ['Working_Memory']
         self.feature_names = [col for col in df_raw.columns if col not in exclude_cols]
         self.X_raw = df_raw[self.feature_names]
         self.y = df_raw['Working_Memory'].values
         self.df_raw = df_raw
         missing = self.df_raw.isnull().sum().sum()
         self.stats['missing'] = missing
+        self.diagnosis_col = diagnosis_col
         self.dataset_table = f"""
         <table class='info-table'>
         <tr><th>Samples</th><td>{len(self.df_raw)}</td></tr>
@@ -152,36 +168,49 @@ class ENIGMAPipeline:
         """
         print("Data loaded and merged.")
 
+    # ======================== FIXED EDA ===========================
     def run_eda(self):
         eda_dir = f"{self.out_dir}/EDA"
+        os.makedirs(eda_dir, exist_ok=True)
         eda_imgs = []
         eda_stats = {}
+
         for var in ['Age', 'Sex', 'Site']:
-            plt.figure(figsize=(6,3))
+            plt.figure(figsize=(6, 3))
             if var == 'Sex':
                 sns.countplot(x=var, data=self.df_raw, edgecolor='k', palette='colorblind')
                 eda_stats['sex_counts'] = self.df_raw[var].value_counts().to_dict()
-            else:
+            elif np.issubdtype(self.df_raw[var].dtype, np.number):
                 sns.histplot(self.df_raw[var], kde=True, bins=30, color="#1f77b4", edgecolor='black')
                 eda_stats[f'{var.lower()}_mean'] = self.df_raw[var].mean()
                 eda_stats[f'{var.lower()}_std'] = self.df_raw[var].std()
+            else:
+                # For categorical columns like 'Site'
+                sns.countplot(x=var, data=self.df_raw, edgecolor='k', palette='Set2')
+                eda_stats[f'{var.lower()}_counts'] = self.df_raw[var].value_counts().to_dict()
             plt.title(f'{var} Distribution', fontsize=18, weight='bold')
             plt.xlabel(var, fontsize=15)
             plt.ylabel("Count", fontsize=15)
             plt.tight_layout()
             fname = f"{eda_dir}/{var}_hist.png"
-            plt.savefig(fname, dpi=250); plt.close()
+            plt.savefig(fname, dpi=250)
+            plt.close()
             eda_imgs.append(fname)
-        plt.figure(figsize=(6,3))
+
+        # Working Memory (assume it's numeric)
+        plt.figure(figsize=(6, 3))
         sns.histplot(self.df_raw['Working_Memory'], bins=40, kde=True, color="#f39c12", edgecolor='black')
         plt.title('Working Memory Distribution', fontsize=18, weight='bold')
         plt.xlabel("Working Memory Score", fontsize=15)
         plt.tight_layout()
         fname = f"{eda_dir}/Working_Memory_hist.png"
-        plt.savefig(fname, dpi=250); plt.close()
+        plt.savefig(fname, dpi=250)
+        plt.close()
         eda_imgs.append(fname)
         eda_stats['wm_mean'] = self.df_raw['Working_Memory'].mean()
         eda_stats['wm_std'] = self.df_raw['Working_Memory'].std()
+
+        # sMRI Features (self.X_raw assumed to be DataFrame with only numeric columns)
         plt.figure(figsize=(12, 3))
         means = self.X_raw.mean()
         sns.histplot(means, bins=40, color="#16a085", edgecolor='black')
@@ -189,8 +218,10 @@ class ENIGMAPipeline:
         plt.xlabel('Mean Value', fontsize=13)
         plt.tight_layout()
         fname = f"{eda_dir}/Feature_Mean_hist.png"
-        plt.savefig(fname, dpi=250); plt.close()
+        plt.savefig(fname, dpi=250)
+        plt.close()
         eda_imgs.append(fname)
+
         plt.figure(figsize=(12, 3))
         stds = self.X_raw.std()
         sns.histplot(stds, bins=40, color="#c0392b", edgecolor='black')
@@ -198,26 +229,37 @@ class ENIGMAPipeline:
         plt.xlabel('Std Value', fontsize=13)
         plt.tight_layout()
         fname = f"{eda_dir}/Feature_Std_hist.png"
-        plt.savefig(fname, dpi=250); plt.close()
+        plt.savefig(fname, dpi=250)
+        plt.close()
         eda_imgs.append(fname)
+
+        # Missing values heatmap
         plt.figure(figsize=(14, 1))
         sns.heatmap(self.df_raw.isnull(), cbar=False, cmap='Reds')
         plt.title('Missing Values', fontsize=16, weight='bold')
         fname = f"{eda_dir}/missing_values_heatmap.png"
         plt.tight_layout()
-        plt.savefig(fname, dpi=250); plt.close()
+        plt.savefig(fname, dpi=250)
+        plt.close()
         eda_imgs.append(fname)
+
         self.plots += eda_imgs
+
+        # Update EDA summary table robustly
         eda_df = pd.DataFrame([
             ["Sex (counts)", str(eda_stats.get('sex_counts', '-'))],
-            ["Age (mean ± std)", f"{eda_stats.get('age_mean', '-'):0.1f} ± {eda_stats.get('age_std', '-'):0.1f}"],
-            ["Site (mean ± std)", f"{eda_stats.get('site_mean', '-'):0.1f} ± {eda_stats.get('site_std', '-'):0.1f}"],
-            ["Working Memory (mean ± std)", f"{eda_stats.get('wm_mean', '-'):0.2f} ± {eda_stats.get('wm_std', '-'):0.2f}"]
+            ["Age (mean ± std)",
+             f"{eda_stats.get('age_mean', '-'):0.1f} ± {eda_stats.get('age_std', '-'):0.1f}" if 'age_mean' in eda_stats else "-"],
+            ["Site (counts)", str(eda_stats.get('site_counts', '-'))],
+            ["Working Memory (mean ± std)",
+             f"{eda_stats.get('wm_mean', '-'):0.2f} ± {eda_stats.get('wm_std', '-'):0.2f}" if 'wm_mean' in eda_stats else "-"]
         ], columns=["Variable", "Stats"])
+
         eda_table = eda_df.to_html(index=False, classes='info-table', border=0)
         imgs_html = "".join([f'<img src="{os.path.relpath(x, self.out_dir)}" class="vizimg">' for x in eda_imgs])
         self.eda_section = f"<h2 id='eda'>Exploratory Data Analysis</h2>{eda_table}<div class='viz-grid'>{imgs_html}</div>"
         print("EDA completed and saved.")
+    # ======================== END FIXED EDA ===========================
 
     def harmonize(self):
         if harmonizationLearn is None:
@@ -240,16 +282,21 @@ class ENIGMAPipeline:
                 print(f'ComBat harmonization skipped: {e}')
         harmo_save = self.df_raw[['Sample_ID', 'Site', 'Age', 'Sex']].copy()
         harmo_save = pd.concat([harmo_save, self.X_harmonized], axis=1)
-        harmo_save.to_csv(f"{self.data_dir}/enigma_like_sMRI_harmonized.csv", index=False)
+        harmo_save.to_csv(f"{self.out_dir}/enigma_like_sMRI_harmonized.csv", index=False)
 
     def split_and_scale(self):
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(self.X_harmonized)
+        # 70:30 split, stratified if possible
+        if hasattr(self, 'diagnosis_col') and self.diagnosis_col and self.meta[self.diagnosis_col].nunique() > 1:
+            strat = self.meta[self.diagnosis_col]
+        else:
+            strat = None
         X_train, X_test, y_train, y_test, meta_train, meta_test = train_test_split(
-            X_scaled, self.y, self.meta, test_size=0.2, random_state=self.random_state
+            X_scaled, self.y, self.meta, test_size=0.3, random_state=self.random_state, stratify=strat
         )
-        pd.DataFrame({'Sample_ID': meta_train['Sample_ID']}).to_csv(f"{self.data_dir}/train_samples.csv", index=False)
-        pd.DataFrame({'Sample_ID': meta_test['Sample_ID']}).to_csv(f"{self.data_dir}/test_samples.csv", index=False)
+        pd.DataFrame({'Sample_ID': meta_train['Sample_ID']}).to_csv(f"{self.out_dir}/train_samples.csv", index=False)
+        pd.DataFrame({'Sample_ID': meta_test['Sample_ID']}).to_csv(f"{self.out_dir}/test_samples.csv", index=False)
         self.X_train, self.X_test = X_train, X_test
         self.y_train, self.y_test = y_train, y_test
         self.meta_train, self.meta_test = meta_train, meta_test
@@ -822,5 +869,12 @@ class ENIGMAPipeline:
 # ========== Run Pipeline ===========
 
 if __name__ == '__main__':
-    pipeline = ENIGMAPipeline(data_dir='Data', out_dir='Outputs', random_state=42)
+    if len(sys.argv) != 3:
+        print("\nUsage: python main.py /path/to/enigma_like_sMRI.csv /path/to/enigma_like_WM.csv")
+        sys.exit(1)
+
+    smri_path = sys.argv[1]
+    wm_path = sys.argv[2]
+
+    pipeline = ENIGMAPipeline(smri_path=smri_path, wm_path=wm_path, out_dir='Outputs', random_state=42)
     pipeline.run_full_pipeline()
