@@ -5,9 +5,9 @@
 # Sets up Conda environment, installs dependencies, runs pipeline
 # =========================================================
 
-ENV_NAME="enigma-pipeline"
+ENV_NAME="enigma-pipeline10"
 PYTHON_VERSION=3.10
-SCRIPT_NAME="main.py"   # Change to your actual Python filename if needed
+SCRIPT_NAME="main.py"
 REPORT_PATH="Outputs/ENIGMA_pipeline_report.html"
 
 set -e  # Stop if any error occurs
@@ -48,14 +48,21 @@ echo "----------------------------------------------"
 # 6. Ensure Outputs and subdirectories exist
 mkdir -p Outputs Outputs/EDA Outputs/Visualisations Outputs/Models Outputs/Predictions
 
-# 7. Run the pipeline
+# 7. Ask user for input file paths
+echo -n "Enter full path to your sMRI CSV file: "
+read SMRI_PATH
+
+echo -n "Enter full path to your WM CSV file: "
+read WM_PATH
+
+# 8. Run the pipeline
 if [ ! -f "$SCRIPT_NAME" ]; then
     echo -e "\033[0;31m[ERROR]\033[0m Pipeline script $SCRIPT_NAME not found! Please check your script name/path."
     exit 2
 fi
 
 echo -e "\033[0;32m[RUNNING]\033[0m ENIGMA pipeline script: $SCRIPT_NAME"
-python "$SCRIPT_NAME" | tee Outputs/pipeline_run.log
+python "$SCRIPT_NAME" "$SMRI_PATH" "$WM_PATH" | tee Outputs/pipeline_run.log
 
 STATUS=$?
 if [ $STATUS -eq 0 ]; then
@@ -79,5 +86,5 @@ else
     exit 3
 fi
 
-# 8. Deactivate environment (optional for scripts)
+# 9. Deactivate environment (optional for scripts)
 conda deactivate
