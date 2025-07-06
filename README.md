@@ -14,6 +14,12 @@ A reproducible, scalable, and modular machine learning pipeline for ENIGMA-like 
 
 ---
 
+## 🚀 Pipeline Overview
+
+![ Instagram Facebook Ads - last chance (1080x1080px)-4](https://github.com/user-attachments/assets/7b8e4b5b-a47f-4ad7-a602-731f61ea67a0)
+
+---
+
 ## ⚙️ Installation & Environment
 
 1. **Install [Anaconda](https://www.anaconda.com/products/distribution) (recommended), or Miniconda.**
